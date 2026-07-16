@@ -22,8 +22,6 @@ type Channel = {
   url: string;
 };
 
-const PLAYLIST_URL = "https://iptv-org.github.io/iptv/index.m3u";
-
 const demoChannels: Channel[] = [
   { id: "1", name: "Bloomberg TV", group: "Business", url: "" },
   { id: "2", name: "France 24 English", group: "News", url: "" },
@@ -68,7 +66,7 @@ export default function Index() {
   useEffect(() => {
     const controller = new AbortController();
 
-    fetch(PLAYLIST_URL, { signal: controller.signal })
+    fetch("/api/iptv/playlist", { signal: controller.signal })
       .then((response) => {
         if (!response.ok) throw new Error("Playlist unavailable");
         return response.text();
@@ -98,8 +96,7 @@ export default function Index() {
     const search = query.toLowerCase().trim();
     return channels
       .filter((channel) => activeGroup === "Explore" || channel.group === activeGroup)
-      .filter((channel) => !search || `${channel.name} ${channel.group}`.toLowerCase().includes(search))
-      .slice(0, 30);
+      .filter((channel) => !search || `${channel.name} ${channel.group}`.toLowerCase().includes(search));
   }, [activeGroup, channels, query]);
 
   const selectChannel = (channel: Channel) => {
@@ -197,12 +194,13 @@ export default function Index() {
             {groups.map((group) => <button key={group} onClick={() => setActiveGroup(group)} className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition ${activeGroup === group ? "bg-[#a5ff51] text-[#10140d]" : "border border-white/10 bg-white/[0.035] text-[#a6a8b3] hover:border-white/25 hover:text-white"}`}>{group}</button>)}
           </div>
           <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-            {filteredChannels.slice(0, 15).map((channel) => <button key={channel.id + channel.url} onClick={() => selectChannel(channel)} className={`group flex min-w-0 items-center gap-3 rounded-2xl border p-3 text-left transition ${activeChannel?.url === channel.url ? "border-[#a5ff51]/50 bg-[#a5ff51]/[0.09]" : "border-white/[0.08] bg-white/[0.025] hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.06]"}`}>
+            {filteredChannels.map((channel) => <button key={channel.id + channel.url} onClick={() => selectChannel(channel)} className={`group flex min-w-0 items-center gap-3 rounded-2xl border p-3 text-left transition ${activeChannel?.url === channel.url ? "border-[#a5ff51]/50 bg-[#a5ff51]/[0.09]" : "border-white/[0.08] bg-white/[0.025] hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.06]"}`}>
               <span className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-xl bg-[#1f202d] text-[#b7b8c2]">{channel.logo ? <img src={channel.logo} alt="" className="h-full w-full object-contain p-1" /> : <Tv size={18} />}</span>
               <span className="min-w-0"><span className="block truncate text-sm font-bold">{channel.name}</span><span className="mt-0.5 block truncate text-xs text-[#858792]">{channel.group}</span></span>
             </button>)}
           </div>
           {status === "error" && <p className="mt-5 text-sm text-[#a6a8b3]">The live guide is temporarily unavailable. Showing a sample guide while it reconnects.</p>}
+          {status === "ready" && filteredChannels.length === 0 && <p className="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] p-8 text-center text-sm text-[#a6a8b3]">No channels match your search.</p>}
         </div>
       </section>
     </main>
