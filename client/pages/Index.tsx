@@ -53,12 +53,11 @@ export default function Index() {
   const [activeChannel, setActiveChannel] = useState<Channel | null>(null);
   const [query, setQuery] = useState("");
   const [activeGroup, setActiveGroup] = useState("All channels");
-  const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem("telly-theme") as Theme) || "light");
+  const [theme, setTheme] = useState<Theme>("light");
   const [mobileMenu, setMobileMenu] = useState(false);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
 
   useEffect(() => {
-    localStorage.setItem("telly-theme", theme);
     document.documentElement.classList.toggle("dark", theme === "dark");
   }, [theme]);
 
