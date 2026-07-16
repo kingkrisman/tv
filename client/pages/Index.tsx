@@ -1,26 +1,23 @@
 import {
-  Bell,
   ChevronDown,
   Clapperboard,
   Globe2,
   Heart,
   LoaderCircle,
+  Menu,
+  Moon,
   Play,
   Search,
-  SlidersHorizontal,
-  Sparkles,
+  Sun,
   Tv,
   Volume2,
+  X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
-type Channel = {
-  id: string;
-  name: string;
-  logo?: string;
-  group?: string;
-  url: string;
-};
+type Channel = { id: string; name: string; logo?: string; group?: string; url: string };
+
+type Theme = "light" | "dark";
 
 const demoChannels: Channel[] = [
   { id: "1", name: "Bloomberg TV", group: "Business", url: "" },
@@ -32,18 +29,14 @@ const demoChannels: Channel[] = [
 ];
 
 function parsePlaylist(playlist: string): Channel[] {
-  const lines = playlist.split(/\r?\n/);
   const parsed: Channel[] = [];
   let current: Omit<Channel, "url"> | null = null;
-
-  for (const line of lines) {
+  for (const line of playlist.split(/\r?\n/)) {
     if (line.startsWith("#EXTINF:")) {
-      const name = line.split(",").slice(1).join(",").trim() || "Untitled channel";
-      const attr = (attribute: string) =>
-        line.match(new RegExp(`${attribute}="([^"]*)"`))?.[1];
+      const attr = (key: string) => line.match(new RegExp(`${key}="([^"]*)"`))?.[1];
       current = {
-        id: attr("tvg-id") || `${name}-${parsed.length}`,
-        name,
+        id: attr("tvg-id") || `${parsed.length}`,
+        name: line.split(",").slice(1).join(",").trim() || "Untitled channel",
         logo: attr("tvg-logo"),
         group: attr("group-title") || "General",
       };
@@ -52,7 +45,6 @@ function parsePlaylist(playlist: string): Channel[] {
       current = null;
     }
   }
-
   return parsed;
 }
 
@@ -60,21 +52,27 @@ export default function Index() {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [activeChannel, setActiveChannel] = useState<Channel | null>(null);
   const [query, setQuery] = useState("");
-  const [activeGroup, setActiveGroup] = useState("Explore");
+  const [activeGroup, setActiveGroup] = useState("All channels");
+  const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem("telly-theme") as Theme) || "light");
+  const [mobileMenu, setMobileMenu] = useState(false);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
 
   useEffect(() => {
-    const controller = new AbortController();
+    localStorage.setItem("telly-theme", theme);
+    document.documentElement.classList.toggle("dark", theme === "dark");
+  }, [theme]);
 
+  useEffect(() => {
+    const controller = new AbortController();
     fetch("/api/iptv/playlist", { signal: controller.signal })
       .then((response) => {
         if (!response.ok) throw new Error("Playlist unavailable");
         return response.text();
       })
       .then((playlist) => {
-        const loadedChannels = parsePlaylist(playlist);
-        setChannels(loadedChannels);
-        setActiveChannel(loadedChannels[0] ?? null);
+        const loaded = parsePlaylist(playlist);
+        setChannels(loaded);
+        setActiveChannel(loaded[0] ?? null);
         setStatus("ready");
       })
       .catch((error: unknown) => {
@@ -83,126 +81,50 @@ export default function Index() {
         setActiveChannel(demoChannels[0]);
         setStatus("error");
       });
-
     return () => controller.abort();
   }, []);
 
-  const groups = useMemo(() => {
-    const unique = Array.from(new Set(channels.map((channel) => channel.group).filter(Boolean))).slice(0, 7);
-    return ["Explore", ...unique];
-  }, [channels]);
-
+  const groups = useMemo(() => ["All channels", ...Array.from(new Set(channels.map((channel) => channel.group).filter(Boolean)))], [channels]);
   const filteredChannels = useMemo(() => {
     const search = query.toLowerCase().trim();
-    return channels
-      .filter((channel) => activeGroup === "Explore" || channel.group === activeGroup)
-      .filter((channel) => !search || `${channel.name} ${channel.group}`.toLowerCase().includes(search));
+    return channels.filter((channel) => (activeGroup === "All channels" || channel.group === activeGroup) && (!search || `${channel.name} ${channel.group}`.toLowerCase().includes(search)));
   }, [activeGroup, channels, query]);
 
   const selectChannel = (channel: Channel) => {
     setActiveChannel(channel);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
+  const isDark = theme === "dark";
 
   return (
-    <main className="min-h-screen overflow-hidden bg-[#080a12] text-[#f7f7fb]">
-      <div className="aurora aurora-one" />
-      <div className="aurora aurora-two" />
+    <main className="min-h-screen bg-slate-50 text-slate-950 transition-colors dark:bg-slate-950 dark:text-white">
+      <header className="border-b border-slate-200/80 bg-white/90 dark:border-slate-800 dark:bg-slate-950/90">
+        <div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between px-5 sm:px-8">
+          <div className="flex items-center gap-3"><span className="grid h-9 w-9 place-items-center rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-600/20"><Tv size={19} /></span><span className="text-xl font-extrabold tracking-tight">telly</span></div>
+          <nav className="hidden items-center gap-8 text-sm font-semibold text-slate-500 md:flex dark:text-slate-400"><button className="text-blue-600 dark:text-blue-400">Live TV</button><button className="transition hover:text-blue-600">Guide</button><button className="transition hover:text-blue-600">Favorites</button></nav>
+          <div className="flex items-center gap-2"><button onClick={() => setTheme(isDark ? "light" : "dark")} className="grid h-10 w-10 place-items-center rounded-xl text-slate-500 transition hover:bg-slate-100 hover:text-blue-600 dark:text-slate-400 dark:hover:bg-slate-800" aria-label="Toggle dark mode">{isDark ? <Sun size={18} /> : <Moon size={18} />}</button><button onClick={() => setMobileMenu(!mobileMenu)} className="grid h-10 w-10 place-items-center rounded-xl text-slate-500 md:hidden" aria-label="Toggle navigation">{mobileMenu ? <X size={19} /> : <Menu size={19} />}</button><button className="hidden items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold sm:flex dark:border-slate-800"><span className="grid h-6 w-6 place-items-center rounded-full bg-blue-100 text-[10px] text-blue-700 dark:bg-blue-950 dark:text-blue-300">CD</span><ChevronDown size={14} /></button></div>
+        </div>
+        {mobileMenu && <div className="border-t border-slate-200 px-5 py-4 md:hidden dark:border-slate-800"><div className="flex flex-col gap-4 text-sm font-semibold text-slate-600 dark:text-slate-300"><button className="text-left text-blue-600">Live TV</button><button className="text-left">Guide</button><button className="text-left">Favorites</button></div></div>}
+      </header>
 
-      <nav className="relative z-10 mx-auto flex max-w-[1480px] items-center justify-between px-5 py-5 sm:px-8 lg:px-12">
-        <div className="flex items-center gap-3">
-          <div className="grid h-10 w-10 place-items-center rounded-[14px] bg-[#a5ff51] text-[#10140d] shadow-[0_0_30px_rgba(165,255,81,0.22)]">
-            <Tv size={21} strokeWidth={2.5} />
-          </div>
-          <span className="text-xl font-extrabold tracking-[-0.06em]">telly</span>
-        </div>
-        <div className="hidden items-center gap-8 text-sm font-medium text-[#9da0ad] md:flex">
-          <button className="text-white">Live TV</button>
-          <button className="transition hover:text-white">Discover</button>
-          <button className="transition hover:text-white">My list</button>
-        </div>
-        <div className="flex items-center gap-3">
-          <button className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/[0.045] text-[#d8d9e0] transition hover:bg-white/10" aria-label="Notifications">
-            <Bell size={17} />
-          </button>
-          <button className="hidden h-10 items-center gap-2 rounded-full border border-white/10 bg-white/[0.045] px-3 text-sm font-semibold sm:flex">
-            <span className="grid h-6 w-6 place-items-center rounded-full bg-gradient-to-br from-[#f5a5eb] to-[#8677fa] text-[10px] text-white">CD</span>
-            <ChevronDown size={14} />
-          </button>
-        </div>
-      </nav>
+      <div className="mx-auto max-w-7xl px-5 py-8 sm:px-8 lg:py-12">
+        <div className="mb-8 flex flex-col justify-between gap-5 sm:flex-row sm:items-end"><div><p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-blue-600 dark:text-blue-400"><span className="h-2 w-2 rounded-full bg-blue-600" /> Live television</p><h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">Watch something good.</h1><p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Free live channels from around the world, all in one place.</p></div><div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400"><Globe2 size={16} className="text-blue-600" /> {status === "loading" ? "Loading guide…" : `${channels.length.toLocaleString()} channels available`}</div></div>
 
-      <section className="relative z-10 mx-auto max-w-[1480px] px-5 pb-14 pt-6 sm:px-8 lg:px-12 lg:pt-12">
-        <div className="grid items-end gap-5 lg:grid-cols-[1fr_auto]">
-          <div>
-            <div className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-[#a5ff51]"><span className="h-2 w-2 animate-pulse rounded-full bg-[#a5ff51]" /> Live now</div>
-            <h1 className="max-w-3xl text-4xl font-extrabold leading-[0.97] tracking-[-0.065em] sm:text-6xl lg:text-7xl">TV from around<br className="hidden sm:block" /> the world, <em className="font-serif font-normal text-[#c7c6d0]">right now.</em></h1>
-          </div>
-          <p className="max-w-[300px] pb-1 text-sm leading-6 text-[#a7a7b3]">A constantly changing collection of free live channels, curated from the open web.</p>
-        </div>
-
-        <div className="mt-10 grid gap-7 xl:grid-cols-[minmax(0,1.65fr)_minmax(310px,0.65fr)]">
-          <div className="overflow-hidden rounded-[28px] border border-white/10 bg-[#11131d] shadow-2xl shadow-black/30">
-            <div className="relative aspect-video overflow-hidden bg-[radial-gradient(circle_at_58%_35%,#3a1c62_0%,#211535_31%,#11131d_73%)]">
-              {activeChannel?.url ? (
-                <video key={activeChannel.url} className="h-full w-full object-cover" src={activeChannel.url} controls autoPlay muted playsInline />
-              ) : (
-                <div className="absolute inset-0 grid place-items-center">
-                  <div className="text-center"><div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-white/10"><Play fill="currentColor" size={25} /></div><p className="mt-4 text-sm text-white/60">Choose a channel to start watching</p></div>
-                </div>
-              )}
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-[#10111a]/80 to-transparent" />
-              <div className="absolute bottom-5 left-5 flex items-center gap-3">
-                <div className="grid h-10 w-10 place-items-center overflow-hidden rounded-xl bg-white text-[#14141e]">
-                  {activeChannel?.logo ? <img src={activeChannel.logo} alt="" className="h-full w-full object-contain p-1" /> : <Clapperboard size={19} />}
-                </div>
-                <div><p className="text-sm font-bold">{activeChannel?.name ?? "Loading channels"}</p><p className="text-xs text-white/55">{activeChannel?.group ?? "Live television"}</p></div>
-              </div>
-              <div className="absolute bottom-5 right-5 flex items-center gap-2 rounded-full bg-black/35 px-3 py-2 text-xs font-semibold text-white/80 backdrop-blur-sm"><Volume2 size={14} /> Live</div>
+        <section className="grid gap-6 lg:grid-cols-[minmax(0,1.65fr)_minmax(280px,0.65fr)]">
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="relative aspect-video bg-slate-900">
+              {activeChannel?.url ? <video key={activeChannel.url} className="h-full w-full object-contain" src={activeChannel.url} controls autoPlay muted playsInline /> : <div className="absolute inset-0 grid place-items-center"><div className="text-center"><div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-blue-600 text-white shadow-lg shadow-blue-600/30"><Play fill="currentColor" size={22} /></div><p className="mt-4 text-sm text-slate-400">Select a channel below to start watching</p></div></div>}
+              <div className="absolute bottom-4 left-4 flex items-center gap-3"><span className="grid h-9 w-9 place-items-center overflow-hidden rounded-lg bg-white text-slate-700">{activeChannel?.logo ? <img src={activeChannel.logo} alt="" className="h-full w-full object-contain p-1" /> : <Clapperboard size={17} />}</span><div><p className="text-sm font-bold text-white">{activeChannel?.name ?? "Live channels"}</p><p className="text-xs text-slate-300">{activeChannel?.group ?? "Worldwide"}</p></div></div><span className="absolute bottom-4 right-4 flex items-center gap-1.5 rounded-md bg-black/50 px-2.5 py-1.5 text-xs text-white"><Volume2 size={13} /> LIVE</span>
             </div>
-            <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
-              <div className="flex items-center gap-2 text-sm text-[#9fa1ad]"><span className="font-bold text-[#a5ff51]">ON AIR</span><span className="h-1 w-1 rounded-full bg-[#5e6070]" /> Worldwide public streams</div>
-              <button className="flex items-center gap-2 text-sm font-semibold text-white/70 transition hover:text-white"><Heart size={16} /> Save channel</button>
-            </div>
+            <div className="flex items-center justify-between px-5 py-4"><div><p className="text-sm font-bold">{activeChannel?.name ?? "Choose a channel"}</p><p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{activeChannel?.group ?? "Your selected channel will appear here"}</p></div><button className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-blue-600 dark:hover:bg-slate-800"><Heart size={16} /> Save</button></div>
           </div>
 
-          <aside className="rounded-[28px] border border-white/10 bg-white/[0.035] p-5 xl:p-6">
-            <div className="mb-6 flex items-center justify-between"><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-[#a5ff51]">Up next</p><h2 className="mt-1 text-xl font-bold tracking-[-0.04em]">Freshly tuned</h2></div><Sparkles size={19} className="text-[#ded4ff]" /></div>
-            <div className="space-y-3">
-              {filteredChannels.slice(1, 5).map((channel, index) => <button key={channel.id + channel.url} onClick={() => selectChannel(channel)} className="group flex w-full items-center gap-3 rounded-2xl p-2 text-left transition hover:bg-white/[0.07]">
-                <span className="w-4 text-xs font-bold text-[#696b77]">0{index + 1}</span>
-                <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-[#242533] text-[#c5c6cf]">{channel.logo ? <img src={channel.logo} alt="" className="h-full w-full object-contain p-1" /> : <Tv size={16} />}</span>
-                <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{channel.name}</span><span className="mt-0.5 block text-xs text-[#898b97]">{channel.group}</span></span>
-                <Play size={15} className="text-[#a5ff51] opacity-0 transition group-hover:opacity-100" fill="currentColor" />
-              </button>)}
-              {status === "loading" && <div className="flex items-center gap-3 px-2 py-5 text-sm text-[#9698a4]"><LoaderCircle size={17} className="animate-spin text-[#a5ff51]" /> Gathering live channels…</div>}
-            </div>
-          </aside>
-        </div>
-      </section>
+          <aside className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900"><div className="mb-4 flex items-center justify-between"><div><p className="text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">Quick picks</p><h2 className="mt-1 text-lg font-bold">On air now</h2></div><span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-600 dark:bg-blue-950/50 dark:text-blue-300">Live</span></div><div className="space-y-1">{filteredChannels.slice(0, 5).map((channel) => <button key={channel.id + channel.url} onClick={() => selectChannel(channel)} className="group flex w-full items-center gap-3 rounded-xl p-2 text-left transition hover:bg-slate-50 dark:hover:bg-slate-800"><span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-lg bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400">{channel.logo ? <img src={channel.logo} alt="" className="h-full w-full object-contain p-1" /> : <Tv size={15} />}</span><span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{channel.name}</span><span className="block truncate text-xs text-slate-500 dark:text-slate-400">{channel.group}</span></span><Play size={14} className="text-blue-600 opacity-0 transition group-hover:opacity-100" fill="currentColor" /></button>)}{status === "loading" && <div className="flex items-center gap-2 py-5 text-sm text-slate-500"><LoaderCircle size={16} className="animate-spin text-blue-600" /> Loading channels…</div>}</div></aside>
+        </section>
 
-      <section className="relative z-10 border-t border-white/[0.08] bg-[#0c0e16]/80 py-10 backdrop-blur-sm">
-        <div className="mx-auto max-w-[1480px] px-5 sm:px-8 lg:px-12">
-          <div className="flex flex-col justify-between gap-5 md:flex-row md:items-end">
-            <div><p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[#a5ff51]"><Globe2 size={14} /> Channel guide</p><h2 className="mt-2 text-3xl font-extrabold tracking-[-0.055em]">Find your next window.</h2></div>
-            <div className="flex w-full items-center gap-3 md:w-auto">
-              <label className="flex h-11 flex-1 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.045] px-3 text-[#92949e] md:w-64"><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search channels" className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-[#777985]" /></label>
-              <button className="grid h-11 w-11 place-items-center rounded-xl border border-white/10 bg-white/[0.045] text-[#c8c9d1]" aria-label="Filter channels"><SlidersHorizontal size={17} /></button>
-            </div>
-          </div>
-          <div className="mt-7 flex gap-2 overflow-x-auto pb-2 scrollbar-none">
-            {groups.map((group) => <button key={group} onClick={() => setActiveGroup(group)} className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition ${activeGroup === group ? "bg-[#a5ff51] text-[#10140d]" : "border border-white/10 bg-white/[0.035] text-[#a6a8b3] hover:border-white/25 hover:text-white"}`}>{group}</button>)}
-          </div>
-          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-            {filteredChannels.map((channel) => <button key={channel.id + channel.url} onClick={() => selectChannel(channel)} className={`group flex min-w-0 items-center gap-3 rounded-2xl border p-3 text-left transition ${activeChannel?.url === channel.url ? "border-[#a5ff51]/50 bg-[#a5ff51]/[0.09]" : "border-white/[0.08] bg-white/[0.025] hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.06]"}`}>
-              <span className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-xl bg-[#1f202d] text-[#b7b8c2]">{channel.logo ? <img src={channel.logo} alt="" className="h-full w-full object-contain p-1" /> : <Tv size={18} />}</span>
-              <span className="min-w-0"><span className="block truncate text-sm font-bold">{channel.name}</span><span className="mt-0.5 block truncate text-xs text-[#858792]">{channel.group}</span></span>
-            </button>)}
-          </div>
-          {status === "error" && <p className="mt-5 text-sm text-[#a6a8b3]">The live guide is temporarily unavailable. Showing a sample guide while it reconnects.</p>}
-          {status === "ready" && filteredChannels.length === 0 && <p className="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] p-8 text-center text-sm text-[#a6a8b3]">No channels match your search.</p>}
-        </div>
-      </section>
+        <section className="mt-12"><div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><h2 className="text-2xl font-extrabold tracking-tight">Channel guide</h2><p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Browse the complete live channel directory.</p></div><label className="flex h-10 w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-slate-400 sm:w-64 dark:border-slate-800 dark:bg-slate-900"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search channels" className="min-w-0 flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400 dark:text-white" /></label></div><div className="mt-6 flex gap-2 overflow-x-auto pb-2">{groups.map((group) => <button key={group} onClick={() => setActiveGroup(group)} className={`shrink-0 rounded-lg px-3.5 py-2 text-sm font-semibold transition ${activeGroup === group ? "bg-blue-600 text-white shadow-sm shadow-blue-600/20" : "border border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:text-blue-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"}`}>{group}</button>)}</div><div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{filteredChannels.map((channel) => <button key={channel.id + channel.url} onClick={() => selectChannel(channel)} className={`group flex min-w-0 items-center gap-3 rounded-xl border bg-white p-3 text-left transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md dark:bg-slate-900 dark:hover:border-blue-700 ${activeChannel?.url === channel.url ? "border-blue-500 ring-1 ring-blue-500" : "border-slate-200 dark:border-slate-800"}`}><span className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-lg bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400">{channel.logo ? <img src={channel.logo} alt="" className="h-full w-full object-contain p-1" /> : <Tv size={18} />}</span><span className="min-w-0"><span className="block truncate text-sm font-bold">{channel.name}</span><span className="mt-0.5 block truncate text-xs text-slate-500 dark:text-slate-400">{channel.group}</span></span></button>)}</div>{status === "error" && <p className="mt-5 text-sm text-slate-500">The live guide is temporarily unavailable. Showing a sample guide.</p>}{status === "ready" && filteredChannels.length === 0 && <p className="mt-8 rounded-xl border border-dashed border-slate-300 p-10 text-center text-sm text-slate-500 dark:border-slate-700">No channels match your search.</p>}</section>
+      </div>
+      <footer className="border-t border-slate-200 py-6 dark:border-slate-800"><div className="mx-auto flex max-w-7xl items-center justify-between px-5 text-xs text-slate-500 sm:px-8"><span>telly · Live TV on the open web</span><span>Updated from IPTV-Org</span></div></footer>
     </main>
   );
 }
