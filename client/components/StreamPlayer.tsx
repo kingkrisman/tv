@@ -5,6 +5,7 @@ import { forwardRef, useEffect, useRef } from "react";
 type StreamPlayerProps = {
   source: string;
   onError: () => void;
+  onReady: () => void;
 };
 
 function isHlsSource(source: string) {
@@ -15,10 +16,12 @@ function isDashSource(source: string) {
   return /\.mpd(?:$|[?#])/i.test(source);
 }
 
-const StreamPlayer = forwardRef<HTMLVideoElement, StreamPlayerProps>(function StreamPlayer({ source, onError }, forwardedRef) {
+const StreamPlayer = forwardRef<HTMLVideoElement, StreamPlayerProps>(function StreamPlayer({ source, onError, onReady }, forwardedRef) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const onErrorRef = useRef(onError);
+  const onReadyRef = useRef(onReady);
   onErrorRef.current = onError;
+  onReadyRef.current = onReady;
 
   useEffect(() => {
     const video = videoRef.current;
@@ -69,6 +72,7 @@ const StreamPlayer = forwardRef<HTMLVideoElement, StreamPlayerProps>(function St
       muted
       playsInline
       onError={onError}
+      onLoadedData={() => onReadyRef.current()}
     />
   );
 });
