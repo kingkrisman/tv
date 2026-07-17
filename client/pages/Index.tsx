@@ -42,7 +42,15 @@ function parsePlaylist(playlist: string): Channel[] {
         group: attr("group-title") || "General",
       };
     } else if (current && line.trim() && !line.startsWith("#")) {
-      parsed.push({ ...current, url: line.trim() });
+      const url = line.trim();
+      try {
+        const parsedUrl = new URL(url);
+        if (parsedUrl.protocol === "http:" || parsedUrl.protocol === "https:") {
+          parsed.push({ ...current, url });
+        }
+      } catch {
+        // Ignore malformed stream URLs from the external playlist.
+      }
       current = null;
     }
   }
@@ -63,6 +71,8 @@ export default function Index() {
   const [theme, setTheme] = useState<Theme>("light");
   const [mobileMenu, setMobileMenu] = useState(false);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [streamError, setStreamError] = useState(false);
+  const [playbackAttempt, setPlaybackAttempt] = useState(0);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
@@ -121,6 +131,7 @@ export default function Index() {
   }, [activeGroup, deferredQuery]);
 
   const selectChannel = (channel: Channel) => {
+    setStreamError(false);
     setActiveChannel(channel);
     setRecentIds((ids) => [channel.id, ...ids.filter((id) => id !== channel.id)].slice(0, 8));
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -146,7 +157,7 @@ export default function Index() {
         <section className="grid gap-6 lg:grid-cols-[minmax(0,1.65fr)_minmax(280px,0.65fr)]">
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <div className="relative aspect-video bg-slate-900">
-              {activeChannel?.url ? <video key={activeChannel.url} className="h-full w-full object-contain" src={activeChannel.url} controls autoPlay muted playsInline /> : <div className="absolute inset-0 grid place-items-center"><div className="text-center"><div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-blue-600 text-white shadow-lg shadow-blue-600/30"><Play fill="currentColor" size={22} /></div><p className="mt-4 text-sm text-slate-400">Select a channel below to start watching</p></div></div>}
+              {activeChannel?.url && !streamError ? <video key={`${activeChannel.url}-${playbackAttempt}`} className="h-full w-full object-contain" src={activeChannel.url} controls autoPlay muted playsInline onError={() => setStreamError(true)} /> : <div className="absolute inset-0 grid place-items-center px-6"><div className="text-center">{streamError ? <><div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-amber-500 text-white"><WifiOff size={22} /></div><p className="mt-4 text-sm font-semibold text-white">This stream is unavailable</p><p className="mt-1 text-xs text-slate-400">It may be offline, blocked in your region, or unsupported by this browser.</p><div className="mt-4 flex justify-center gap-2"><button onClick={() => { setStreamError(false); setPlaybackAttempt((attempt) => attempt + 1); }} className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-blue-500">Try again</button><button onClick={() => { setStreamError(false); setActiveChannel(null); }} className="rounded-lg bg-white/10 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/20">Choose another</button></div></> : <><div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-blue-600 text-white shadow-lg shadow-blue-600/30"><Play fill="currentColor" size={22} /></div><p className="mt-4 text-sm text-slate-400">Select a channel below to start watching</p></>}</div></div>}
               <div className="absolute bottom-4 left-4 flex items-center gap-3"><span className="grid h-9 w-9 place-items-center overflow-hidden rounded-lg bg-white text-slate-700">{activeChannel?.logo ? <img src={activeChannel.logo} alt="" className="h-full w-full object-contain p-1" /> : <Clapperboard size={17} />}</span><div><p className="text-sm font-bold text-white">{activeChannel?.name ?? "Live channels"}</p><p className="text-xs text-slate-300">{activeChannel?.group ?? "Worldwide"}</p></div></div><span className="absolute bottom-4 right-4 flex items-center gap-1.5 rounded-md bg-black/50 px-2.5 py-1.5 text-xs text-white"><Volume2 size={13} /> LIVE</span>
             </div>
             <div className="flex items-center justify-between px-5 py-4"><div><p className="text-sm font-bold">{activeChannel?.name ?? "Choose a channel"}</p><p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{activeChannel?.group ?? "Your selected channel will appear here"}</p></div>{activeChannel && <button onClick={() => toggleFavorite(activeChannel)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-blue-600 dark:hover:bg-slate-800"><Heart size={16} fill={favoriteIds.includes(activeChannel.id) ? "currentColor" : "none"} /> {favoriteIds.includes(activeChannel.id) ? "Saved" : "Save"}</button>}</div>
