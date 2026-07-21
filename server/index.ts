@@ -19,7 +19,7 @@ export function createServer() {
   });
 
   app.get("/api/demo", handleDemo);
-  app.get("/api/iptv/playlist", handleIptvPlaylist);
+  app.get(["/api/iptv/playlist", "/iptv/playlist"], handleIptvPlaylist);
 
   return app;
 }
