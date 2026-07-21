@@ -5,8 +5,11 @@ publish = "dist/spa"
 
 
 [functions]
-external_node_modules = ["express"]
 node_bundler = "esbuild"
+
+[dev]
+targetPort = 8080
+
 [[redirects]]
 force = true
 from = "/api/*"
