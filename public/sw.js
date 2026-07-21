@@ -1,4 +1,5 @@
 const SHELL_CACHE = "daniels-network-shell-v1";
+const SHELL_CACHE = "daniels-network-shell-v1";
 const GUIDE_CACHE = "daniels-network-guide-v1";
 
 self.addEventListener("install", (event) => {
