@@ -1,5 +1,4 @@
 const SHELL_CACHE = "daniels-network-shell-v1";
-const SHELL_CACHE = "daniels-network-shell-v1";
 const GUIDE_CACHE = "daniels-network-guide-v1";
 
 self.addEventListener("install", (event) => {
@@ -16,8 +15,10 @@ self.addEventListener("fetch", (event) => {
 
   if (url.pathname === "/api/iptv/playlist") {
     event.respondWith(fetch(request).then((response) => {
-      const copy = response.clone();
-      caches.open(GUIDE_CACHE).then((cache) => cache.put(request, copy));
+      if (response.ok) {
+        const copy = response.clone();
+        caches.open(GUIDE_CACHE).then((cache) => cache.put(request, copy));
+      }
       return response;
     }).catch(() => caches.match(request)));
     return;

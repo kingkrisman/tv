@@ -114,6 +114,7 @@ export default function Index() {
       })
       .then((playlist) => {
         const loaded = parsePlaylist(playlist);
+        if (loaded.length === 0) throw new Error("Playlist contained no channels");
         setChannels(loaded);
         setActiveChannel(null);
         setStatus("ready");
