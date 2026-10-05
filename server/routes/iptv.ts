@@ -2,9 +2,12 @@ import type { RequestHandler } from "express";
 import { Readable } from "node:stream";
 import { gzipSync } from "node:zlib";
 import { isIP } from "node:net";
-import { fetch as relayFetch } from "undici";
 import { parsePlaylist, type ChannelsResponse } from "../../shared/api";
-import { dispatcherFor, relayConfig, reportProxyFailure } from "../proxy";
+import { relayConfig, relayFetch } from "../proxy";
+
+// Serverless platforms (Netlify, Lambda) compress responses themselves and
+// mangle bodies that arrive pre-compressed, so only gzip on a plain Node server.
+const SERVERLESS = Boolean(process.env.NETLIFY || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.LAMBDA_TASK_ROOT);
 
 const PLAYLIST_URL = "https://iptv-org.github.io/iptv/index.m3u";
 const CACHE_TTL = 30 * 60 * 1000;
@@ -40,7 +43,7 @@ export const handleChannels: RequestHandler = async (req, res) => {
     res.set("Cache-Control", "public, max-age=300, stale-while-revalidate=3600");
     res.set("Vary", "Accept-Encoding");
     res.type("application/json");
-    if (!process.env.NETLIFY && /\bgzip\b/.test(req.get("accept-encoding") ?? "")) {
+    if (!SERVERLESS && /\bgzip\b/.test(req.get("accept-encoding") ?? "")) {
       res.set("Content-Encoding", "gzip").send(gzip);
     } else {
       res.send(json);
@@ -142,14 +145,7 @@ export const handleStreamProxy: RequestHandler = async (req, res) => {
     const range = req.get("range");
     if (range) headers.Range = range;
 
-    const dispatcher = dispatcherFor(cc);
-    let upstream;
-    try {
-      upstream = await relayFetch(url, { headers, redirect: "follow", signal: controller.signal, dispatcher });
-    } catch (error) {
-      if (!controller.signal.aborted) reportProxyFailure(cc, error);
-      throw error;
-    }
+    const upstream = await relayFetch(url, { headers, redirect: "follow", signal: controller.signal }, cc);
     clearTimeout(timeout);
     const type = upstream.headers.get("content-type") ?? "";
     const finalUrl = upstream.url || url.href;
