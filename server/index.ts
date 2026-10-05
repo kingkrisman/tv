@@ -1,8 +1,11 @@
-import "dotenv/config";
+import dotenv from "dotenv";
 import express from "express";
 import cors from "cors";
 import { handleDemo } from "./routes/demo";
-import { handleIptvPlaylist } from "./routes/iptv";
+import { handleChannels, handleIptvPlaylist, handleRelayConfig, handleStreamProxy } from "./routes/iptv";
+
+// .env.local (git-ignored) holds secrets such as proxy credentials and wins over .env.
+dotenv.config({ path: [".env.local", ".env"], quiet: true });
 
 export function createServer() {
   const app = express();
@@ -19,6 +22,9 @@ export function createServer() {
   });
 
   app.get("/api/demo", handleDemo);
+  app.get("/api/channels", handleChannels);
+  app.get("/api/stream", handleStreamProxy);
+  app.get("/api/relay", handleRelayConfig);
   app.get(["/api/iptv/playlist", "/iptv/playlist"], handleIptvPlaylist);
 
   return app;

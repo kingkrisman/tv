@@ -20,6 +20,9 @@ importers:
       hls.js:
         specifier: ^1.6.16
         version: 1.6.16
+      undici:
+        specifier: ^8.11.2
+        version: 8.11.2
       zod:
         specifier: ^3.25.76
         version: 3.25.76
@@ -2888,6 +2891,10 @@ packages:
   undici-types@7.10.0:
     resolution: {integrity: sha512-t5Fy/nfn+14LuOc2KNYg75vZqClpAiqscVvMygNnlsHBFpSXdJaYtXMcdNLpl/Qvc3P2cB3s6lOV51nqsFq4ag==}
 
+  undici@8.11.2:
+    resolution: {integrity: sha512-u4UB2/IrKdU6lFxumHmmo1a3fCQO5tzQllRorfoRS63txhrB7xTpSn1PftwC4qEHkOaqP95fCWW4lJzwErwzhQ==}
+    engines: {node: '>=22.19.0'}
+
   unpipe@1.0.0:
     resolution: {integrity: sha512-pjy2bYhSsufwWlKwPc+l3cN7+wuJlK6uz0YdJEOlQDbl6jo/YlPi4mb8agUkVC8BF7V8NuzeyPNqRksA3hztKQ==}
     engines: {node: '>= 0.8'}
@@ -5674,6 +5681,8 @@ snapshots:
   typescript@5.9.2: {}
 
   undici-types@7.10.0: {}
+
+  undici@8.11.2: {}
 
   unpipe@1.0.0: {}
 
