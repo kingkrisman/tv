@@ -2,12 +2,12 @@ import type { RequestHandler } from "express";
 import { Readable } from "node:stream";
 import { gzipSync } from "node:zlib";
 import { isIP } from "node:net";
-import { parsePlaylist, type ChannelsResponse } from "../../shared/api";
-import { relayConfig, relayFetch } from "../proxy";
+import { parsePlaylist, type ChannelsResponse } from "../../shared/api.js";
+import { relayConfig, relayFetch } from "../proxy.js";
 
-// Serverless platforms (Netlify, Lambda) compress responses themselves and
+// Serverless platforms (Vercel, Netlify, Lambda) compress responses themselves and
 // mangle bodies that arrive pre-compressed, so only gzip on a plain Node server.
-const SERVERLESS = Boolean(process.env.NETLIFY || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.LAMBDA_TASK_ROOT);
+const SERVERLESS = Boolean(process.env.VERCEL || process.env.NETLIFY || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.LAMBDA_TASK_ROOT);
 
 const PLAYLIST_URL = "https://iptv-org.github.io/iptv/index.m3u";
 const CACHE_TTL = 30 * 60 * 1000;
@@ -18,10 +18,21 @@ type Cached = { at: number; raw: string; json: Buffer; gzip: Buffer };
 let cache: Cached | null = null;
 let inflight: Promise<Cached> | null = null;
 
+async function download(): Promise<string> {
+  // GitHub Pages is occasionally slow (10s+ for the 2.5 MB playlist); allow time and one retry.
+  for (let attempt = 1; ; attempt++) {
+    try {
+      const response = await fetch(PLAYLIST_URL, { signal: AbortSignal.timeout(30_000) });
+      if (!response.ok) throw new Error(`Playlist responded ${response.status}`);
+      return await response.text();
+    } catch (error) {
+      if (attempt >= 2) throw error;
+    }
+  }
+}
+
 async function refresh(): Promise<Cached> {
-  const response = await fetch(PLAYLIST_URL, { signal: AbortSignal.timeout(20_000) });
-  if (!response.ok) throw new Error(`Playlist responded ${response.status}`);
-  const raw = await response.text();
+  const raw = await download();
   const body: ChannelsResponse = { updatedAt: Date.now(), channels: parsePlaylist(raw) };
   if (body.channels.length === 0) throw new Error("Playlist contained no channels");
   const json = Buffer.from(JSON.stringify(body));
@@ -33,14 +44,19 @@ async function refresh(): Promise<Cached> {
 function getPlaylist(): Promise<Cached> {
   const stale = !cache || Date.now() - cache.at > CACHE_TTL;
   if (stale && !inflight) inflight = refresh().finally(() => (inflight = null));
-  if (cache) return Promise.resolve(cache);
+  if (cache) {
+    // Background refresh: a failure keeps serving the old guide (and must not go unhandled).
+    inflight?.catch((error) => console.warn(`[guide] refresh failed, serving cached copy: ${error}`));
+    return Promise.resolve(cache);
+  }
   return inflight!;
 }
 
 export const handleChannels: RequestHandler = async (req, res) => {
   try {
     const { json, gzip } = await getPlaylist();
-    res.set("Cache-Control", "public, max-age=300, stale-while-revalidate=3600");
+    // s-maxage lets the CDN (Vercel, Netlify) answer most requests without waking the function.
+    res.set("Cache-Control", "public, max-age=300, s-maxage=1800, stale-while-revalidate=86400");
     res.set("Vary", "Accept-Encoding");
     res.type("application/json");
     if (!SERVERLESS && /\bgzip\b/.test(req.get("accept-encoding") ?? "")) {

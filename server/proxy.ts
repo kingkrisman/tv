@@ -1,5 +1,5 @@
 import type { Dispatcher } from "undici";
-import type { RelayConfig } from "../shared/api";
+import type { RelayConfig } from "../shared/api.js";
 
 /**
  * Outbound proxies for the stream relay, so region-locked channels can be

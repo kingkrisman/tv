@@ -32,6 +32,7 @@
   "include": [
     "client/**/*",
     "server/**/*",
+    "api/**/*",
     "shared/**/*",
     "scripts/**/*.ts",
     "vite.config.ts",
